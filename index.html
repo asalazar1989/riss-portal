@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Portal RISS - Gestión de Casos DEMO</title>
+  <title>Portal RISS - Gestión de Casos</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -88,11 +88,7 @@
 <script>
   const flujoURL = "https://prod-04.brazilsouth.logic.azure.com:443/workflows/d1b8131796f44c4cb03fe52f12cd25491/triggers/manual/paths/invoke?api-version=2016-10-01";
   const asesoresValidos = ["INDIRA BARCELO", "ALBIS GONZALEZ"];
-  const casosEjemplo = [
-    { rissId: 'R001', fila: 2, fecha: '2025-07-04', hora: '08:30', estado: 'PENDIENTE', servicio: 'Medicina física', descripcion: 'Consulta inicial', cups: '890201', grupo: 'G.IPS RANGEL', asignado: 'INDIRA BARCELO', llamados: [] },
-    { rissId: 'R002', fila: 3, fecha: '2025-07-04', hora: '09:00', estado: 'NO CONTESTA', servicio: 'Terapia ocupacional', descripcion: 'Sesión control', cups: '890202', grupo: 'G.IPS RANGEL', asignado: 'INDIRA BARCELO', llamados: [] },
-    { rissId: 'R003', fila: 4, fecha: '2025-07-04', hora: '09:30', estado: 'PENDIENTE', servicio: 'Fonoaudiología', descripcion: 'Control lenguaje', cups: '890203', grupo: 'G.IPS RANGEL', asignado: 'INDIRA BARCELO', llamados: [] }
-  ];
+  let casosEjemplo = [];
 
   function iniciarSesion() {
     const nombre = document.getElementById("inputAsesor").value.trim().toUpperCase();
@@ -102,7 +98,13 @@
     }
     document.getElementById("login").classList.add("hidden");
     document.getElementById("contenido").classList.remove("hidden");
-    cargarCasos(nombre);
+    fetch('casos.json')
+      .then(res => res.json())
+      .then(data => {
+        casosEjemplo = data;
+        cargarCasos(nombre);
+      })
+      .catch(err => alert("Error al cargar los casos: " + err.message));
   }
 
   function cerrarSesion() {
@@ -113,6 +115,7 @@
 
   function registrarLlamado(rissId, num) {
     const caso = casosEjemplo.find(c => c.rissId === rissId);
+    if (!caso.llamados) caso.llamados = [];
     if (!caso.llamados.includes(num - 1)) {
       if (num > 1 && !caso.llamados.includes(num - 2)) {
         alert(`Debes realizar primero el llamado ${num - 1}`);
