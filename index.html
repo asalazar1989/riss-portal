@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Portal RISS - Gestión de Casos DEMO</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f4f4;
+      padding: 20px;
+    }
+    .login, .case-form {
+      max-width: 600px;
+      margin: 20px auto;
+      background: #fff;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    h2, h1 {
+      text-align: center;
+    }
+    label, select, input, textarea, button {
+      display: block;
+      width: 100%;
+      margin-top: 10px;
+      margin-bottom: 10px;
+    }
+    button {
+      background: #0078D7;
+      color: white;
+      border: none;
+      padding: 10px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .hidden {
+      display: none;
+    }
+    .case-id {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      font-size: 0.9rem;
+      color: #555;
+    }
+    .case-form {
+      position: relative;
+      margin-bottom: 20px;
+      padding-top: 30px;
+      transition: background 0.3s ease-in-out;
+    }
+    .finalizado {
+      background: #d4edda;
+    }
+    .llamado-realizado-1 {
+      background: #FFC107;
+    }
+    .llamado-realizado-2 {
+      background: #FD7E14;
+    }
+    .llamado-realizado-3 {
+      background: #DC3545;
+    }
+    #logoutBtn {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: #6c757d;
+      width: auto;
+    }
+  </style>
+</head>
+<body>
+<div id="login" class="login">
+  <h2>🔐 Ingreso al Portal RISS</h2>
+  <label for="inputAsesor">Nombre del asesor:</label>
+  <input type="text" id="inputAsesor" placeholder="Ej. INDIRA BARCELO">
+  <button onclick="iniciarSesion()">Ingresar</button>
+</div>
+
+<div id="contenido" class="hidden">
+  <button id="logoutBtn" onclick="cerrarSesion()">🚪 Salir</button>
+  <h1>Casos Asignados</h1>
+  <div id="casos"></div>
+</div>
+
+<script>
+  const flujoURL = "https://prod-04.brazilsouth.logic.azure.com:443/workflows/d1b8131796f44c4cb03fe52f12cd25491/triggers/manual/paths/invoke?api-version=2016-10-01";
+  const asesoresValidos = ["INDIRA BARCELO", "ALBIS GONZALEZ"];
+  const casosEjemplo = [
+    { rissId: 'R001', fila: 2, fecha: '2025-07-04', hora: '08:30', estado: 'PENDIENTE', servicio: 'Medicina física', descripcion: 'Consulta inicial', cups: '890201', grupo: 'G.IPS RANGEL', asignado: 'INDIRA BARCELO', llamados: [] },
+    { rissId: 'R002', fila: 3, fecha: '2025-07-04', hora: '09:00', estado: 'NO CONTESTA', servicio: 'Terapia ocupacional', descripcion: 'Sesión control', cups: '890202', grupo: 'G.IPS RANGEL', asignado: 'INDIRA BARCELO', llamados: [] },
+    { rissId: 'R003', fila: 4, fecha: '2025-07-04', hora: '09:30', estado: 'PENDIENTE', servicio: 'Fonoaudiología', descripcion: 'Control lenguaje', cups: '890203', grupo: 'G.IPS RANGEL', asignado: 'INDIRA BARCELO', llamados: [] }
+  ];
+
+  function iniciarSesion() {
+    const nombre = document.getElementById("inputAsesor").value.trim().toUpperCase();
+    if (!asesoresValidos.includes(nombre)) {
+      alert("Nombre no autorizado");
+      return;
+    }
+    document.getElementById("login").classList.add("hidden");
+    document.getElementById("contenido").classList.remove("hidden");
+    cargarCasos(nombre);
+  }
+
+  function cerrarSesion() {
+    document.getElementById("login").classList.remove("hidden");
+    document.getElementById("contenido").classList.add("hidden");
+    document.getElementById("inputAsesor").value = "";
+  }
+
+  function registrarLlamado(rissId, num) {
+    const caso = casosEjemplo.find(c => c.rissId === rissId);
+    if (!caso.llamados.includes(num - 1)) {
+      if (num > 1 && !caso.llamados.includes(num - 2)) {
+        alert(`Debes realizar primero el llamado ${num - 1}`);
+        return;
+      }
+      caso.llamados.push(num - 1);
+      const btn = document.getElementById(`btn-llamado-${num}-${rissId}`);
+      btn.classList.add(`llamado-realizado-${num}`);
+      const hora = new Date().toLocaleTimeString();
+      btn.textContent = `Llamado ${num} 🕑 ${hora}`;
+      caso[`llamado${num}`] = hora;
+      const divCaso = document.getElementById(`caso-${rissId}`);
+      divCaso.style.background = ["#fff8e1", "#ffe0b2", "#f8d7da"][num - 1];
+      if (caso.llamados.length === 3) {
+        document.getElementById(`estado-${rissId}`).value = "CERRADO";
+        divCaso.classList.add("finalizado");
+        setTimeout(() => enviarGestion(rissId, caso.fecha), 1000);
+      }
+    }
+  }
+
+  function cargarCasos(nombre) {
+    const contenedor = document.getElementById("casos");
+    const casos = casosEjemplo
+      .filter(c => c.asignado === nombre && c.estado !== "CERRADO")
+      .sort((a, b) => (a.estado === "PENDIENTE") - (b.estado === "PENDIENTE"));
+
+    contenedor.innerHTML = "";
+    casos.forEach(caso => {
+      const div = document.createElement("div");
+      div.className = "case-form";
+      div.id = `caso-${caso.rissId}`;
+      div.innerHTML = `
+        <div class="case-id">Fila ${caso.fila}</div>
+        <p><strong>${caso.fecha} ${caso.hora}</strong> — <strong>ID:</strong> ${caso.rissId}</p>
+        <p><strong>Servicio:</strong> ${caso.servicio} — <strong>CUPS:</strong> ${caso.cups}</p>
+        <p><strong>Grupo:</strong> ${caso.grupo}</p>
+        <p><strong>Descripción:</strong> ${caso.descripcion}</p>
+
+        <div>
+          <button id="btn-llamado-1-${caso.rissId}" onclick="registrarLlamado('${caso.rissId}', 1)">📞 Llamado 1</button>
+          <button id="btn-llamado-2-${caso.rissId}" onclick="registrarLlamado('${caso.rissId}', 2)">📞 Llamado 2</button>
+          <button id="btn-llamado-3-${caso.rissId}" onclick="registrarLlamado('${caso.rissId}', 3)">📞 Llamado 3</button>
+        </div>
+
+        <label>Estado
+          <select id="estado-${caso.rissId}">
+            <option value="">Seleccione</option>
+            <option value="CERRADO">CERRADO</option>
+            <option value="NO CONTESTA">NO CONTESTA</option>
+            <option value="PENDIENTE" ${caso.estado === "PENDIENTE" ? "selected" : ""}>PENDIENTE</option>
+          </select>
+        </label>
+
+        <label>Observaciones<textarea id="obs-${caso.rissId}" rows="2"></textarea></label>
+        <button id="btn-enviar-${caso.rissId}" onclick="enviarGestion('${caso.rissId}', '${caso.fecha}')">📤 Enviar gestión</button>
+      `;
+      contenedor.appendChild(div);
+    });
+  }
+
+  function enviarGestion(rissId, fecha) {
+    const estado = document.getElementById(`estado-${rissId}`).value;
+    const obs = document.getElementById(`obs-${rissId}`).value;
+    const resolutor = document.getElementById("inputAsesor").value.trim().toUpperCase();
+    const caso = casosEjemplo.find(c => c.rissId === rissId);
+    const body = {
+      rissId: rissId,
+      estado: estado,
+      observaciones: obs,
+      resolutor: resolutor,
+      fechaGestion: new Date().toISOString(),
+      llamado1: caso.llamado1 || "",
+      llamado2: caso.llamado2 || "",
+      llamado3: caso.llamado3 || ""
+    };
+
+    fetch(flujoURL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(body)
+    })
+    .then(response => {
+      if (!response.ok) throw new Error("Error al enviar al flujo");
+      alert(`✅ Caso ${rissId} gestionado el ${fecha}\nEstado: ${estado}\nObservaciones: ${obs}`);
+      if (estado === "CERRADO") {
+        document.getElementById(`caso-${rissId}`).classList.add("finalizado");
+        setTimeout(() => document.getElementById(`caso-${rissId}`).remove(), 1000);
+      }
+    })
+    .catch(err => alert("Error al actualizar: " + err.message));
+  }
+</script>
+</body>
+</html>
